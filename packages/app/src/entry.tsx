@@ -99,7 +99,16 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
   throw new Error(getRootNotFoundError())
 }
 
+const isWebContainer = () => {
+  try {
+    return typeof SharedArrayBuffer !== "undefined" && location.hostname.includes("vercel.app")
+  } catch {
+    return false
+  }
+}
+
 const getCurrentUrl = () => {
+  if (isWebContainer()) return "http://localhost:3000"
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.VERCEL) {
     const host = import.meta.env.VITE_OPENCODE_SERVER_HOST || "localhost"

@@ -1,0 +1,12 @@
+{
+  "name": "opencode-webcontainer-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-vm-modules webcontainer-server.js"
+  },
+  "dependencies": {
+    "@opencode-ai/webcontainer-server": "1.0.0"
+  }
+}

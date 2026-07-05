@@ -2,5 +2,14 @@
   "buildCommand": "bun install && bun run --cwd packages/app build",
   "outputDirectory": "packages/app/dist",
   "framework": null,
-  "installCommand": "bun install"
+  "installCommand": "bun install",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    }
+  ]
 }

@@ -44,6 +44,7 @@ import { ServerConnection, ServerProvider, useServer } from "@/context/server"
 import { SettingsProvider, useSettings } from "@/context/settings"
 import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
+import { WebContainerProvider } from "@/context/webcontainer"
 import { WslServersProvider } from "@/wsl/context"
 import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
 import LegacyLayout from "@/pages/layout"
@@ -314,44 +315,46 @@ function DraftProviders(props: ParentProps) {
 
 export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
   return (
-    <MetaProvider>
-      <Font />
-      <ThemeProvider
-        onThemeApplied={(_, mode) => {
-          void window.api?.setTitlebar?.({ mode })
-        }}
-      >
-        <LanguageProvider locale={props.locale}>
-          <UiI18nBridge>
-            <ErrorBoundary
-              fallback={(error) => {
-                Sentry.captureException(error)
-                const msg = String(error?.message ?? error ?? "")
-                const isConnectionError =
-                  msg.includes("collection is not a function") ||
-                  msg.includes("is not iterable") ||
-                  msg.includes("fetch") ||
-                  msg.includes("NetworkError")
-                if (isConnectionError) {
-                  return <ConnectionGuide error={error} />
-                }
-                return <ErrorPage error={error} />
-              }}
-            >
-              <QueryProvider>
-                <WslServersProvider>
-                  <DialogProvider>
-                    <MarkedProvider>
-                      <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
-                    </MarkedProvider>
-                  </DialogProvider>
-                </WslServersProvider>
-              </QueryProvider>
-            </ErrorBoundary>
-          </UiI18nBridge>
-        </LanguageProvider>
-      </ThemeProvider>
-    </MetaProvider>
+    <WebContainerProvider>
+      <MetaProvider>
+        <Font />
+        <ThemeProvider
+          onThemeApplied={(_, mode) => {
+            void window.api?.setTitlebar?.({ mode })
+          }}
+        >
+          <LanguageProvider locale={props.locale}>
+            <UiI18nBridge>
+              <ErrorBoundary
+                fallback={(error) => {
+                  Sentry.captureException(error)
+                  const msg = String(error?.message ?? error ?? "")
+                  const isConnectionError =
+                    msg.includes("collection is not a function") ||
+                    msg.includes("is not iterable") ||
+                    msg.includes("fetch") ||
+                    msg.includes("NetworkError")
+                  if (isConnectionError) {
+                    return <ConnectionGuide error={error} />
+                  }
+                  return <ErrorPage error={error} />
+                }}
+              >
+                <QueryProvider>
+                  <WslServersProvider>
+                    <DialogProvider>
+                      <MarkedProvider>
+                        <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
+                      </MarkedProvider>
+                    </DialogProvider>
+                  </WslServersProvider>
+                </QueryProvider>
+              </ErrorBoundary>
+            </UiI18nBridge>
+          </LanguageProvider>
+        </ThemeProvider>
+      </MetaProvider>
+    </WebContainerProvider>
   )
 }
 
