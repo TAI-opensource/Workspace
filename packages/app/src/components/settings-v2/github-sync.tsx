@@ -190,19 +190,20 @@ export const SettingsGitHubSyncV2: Component = () => {
                 title="Sync Interval"
                 description="How often to sync automatically"
               >
-                <div class="w-full sm:w-[220px]">
-                  <SelectV2
-                    value={interval()}
-                    onChange={(e) => setInterval(e.target.value)}
-                    options={[
-                      { value: "60", label: "Every minute" },
-                      { value: "300", label: "Every 5 minutes" },
-                      { value: "900", label: "Every 15 minutes" },
-                      { value: "1800", label: "Every 30 minutes" },
-                      { value: "3600", label: "Every hour" },
-                    ]}
-                  />
-                </div>
+                <SelectV2
+                  appearance="inline"
+                  placement="bottom-end"
+                  gutter={6}
+                  value={interval()}
+                  onChange={(e) => setInterval(e.target.value)}
+                  options={[
+                    { value: "60", label: "Every minute" },
+                    { value: "300", label: "Every 5 minutes" },
+                    { value: "900", label: "Every 15 minutes" },
+                    { value: "1800", label: "Every 30 minutes" },
+                    { value: "3600", label: "Every hour" },
+                  ]}
+                />
               </SettingsRowV2>
 
               <SettingsRowV2
