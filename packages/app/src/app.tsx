@@ -361,11 +361,23 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
 
   const [checkMode, setCheckMode] = createSignal<"blocking" | "background">("blocking")
 
-  // performs repeated health check with a grace period for
-  // non-http connections, otherwise fails instantly
+  const quickConnectCheck = async (): Promise<boolean> => {
+    if (!server.current) return false
+    const { http } = server.current
+    try {
+      const res = await fetch(http.url, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(5000),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+
   const [startupHealthCheck, healthCheckActions] = createResource(() =>
     props.disableHealthCheck
-      ? true
+      ? quickConnectCheck()
       : Effect.gen(function* () {
           if (!server.current) return true
           const { http, type } = server.current
