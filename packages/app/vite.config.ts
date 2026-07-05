@@ -30,4 +30,5 @@ export default defineConfig({
     target: "esnext",
     sourcemap: true,
   },
+  base: process.env.VERCEL ? "./" : "/",
 })

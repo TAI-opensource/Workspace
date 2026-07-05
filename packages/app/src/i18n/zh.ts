@@ -628,6 +628,7 @@ export const dict = {
 
   "settings.section.desktop": "桌面",
   "settings.section.server": "服务器",
+  "settings.section.integrations": "集成",
 
   "settings.tab.general": "通用",
   "settings.tab.shortcuts": "快捷键",

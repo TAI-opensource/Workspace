@@ -1,0 +1,10 @@
+{
+  "buildCommand": "bun install && bun run --cwd packages/app build",
+  "outputDirectory": "packages/app/dist",
+  "framework": null,
+  "installCommand": "bun install",
+  "env": {
+    "VITE_OPENCODE_SERVER_HOST": "@opencode-server-host",
+    "VITE_OPENCODE_SERVER_PORT": "@opencode-server-port"
+  }
+}
