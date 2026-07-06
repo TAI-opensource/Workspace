@@ -11,13 +11,13 @@ type BootCallbacks = {
 const STARTUP_SCRIPT = `#!/bin/bash
 set -e
 echo "=== OpenCode WebContainer Server ==="
-if [ ! -f "server/server.js" ]; then
-  echo "ERROR: Server file not found at server/server.js"
-  ls -la server/ 2>/dev/null || echo "No server directory"
+if [ ! -f "server.js" ]; then
+  echo "ERROR: Server file not found at server.js"
+  ls -la
   exit 1
 fi
 echo "Starting OpenCode server on port 3000..."
-exec node server/server.js serve --port 3000 --hostname 0.0.0.0
+exec node server.js serve --port 3000 --hostname 0.0.0.0
 `
 
 async function fetchFile(url: string, log: (line: string) => void): Promise<Uint8Array | null> {
@@ -68,8 +68,8 @@ async function mountServer(container: WebContainer, baseUrl: string, log: (line:
   // Fetch main entry
   const indexJs = await fetchFile(`${baseUrl}/server/server.js`, log)
   if (!indexJs) throw new Error("server/server.js not found")
-  fileTree["server/server.js"] = { file: { contents: indexJs } }
-  log("Fetched server/server.js")
+  fileTree["server.js"] = { file: { contents: indexJs } }
+  log("Fetched server.js")
 
   // Fetch WASM files needed by the server
   const wasmFiles = [
@@ -81,31 +81,21 @@ async function mountServer(container: WebContainer, baseUrl: string, log: (line:
   for (const wasm of wasmFiles) {
     const data = await fetchFile(`${baseUrl}/server/${wasm}`, log)
     if (data) {
-      fileTree[`server/${wasm}`] = { file: { contents: data } }
+      fileTree[wasm] = { file: { contents: data } }
       log(`Fetched ${wasm}`)
     }
   }
 
-  // Fetch chunk files - try to discover them from the main server.js
+  // Discover chunk files from the server.js imports
   const serverText = new TextDecoder().decode(indexJs)
   const chunkImports = [...serverText.matchAll(/from\s*["']\.\/(chunk-[^"']+)["']/g)]
+  log(`Found ${chunkImports.length} chunk imports`)
+
   for (const match of chunkImports) {
     const chunkName = match[1]
     const data = await fetchFile(`${baseUrl}/server/${chunkName}`, log)
     if (data) {
-      fileTree[`server/${chunkName}`] = { file: { contents: data } }
-    }
-  }
-
-  // Also try fetching chunk files referenced with .js extension
-  const chunkRefs = [...serverText.matchAll(/["'](chunk-[a-z0-9]+\.js)["']/g)]
-  for (const match of chunkRefs) {
-    const chunkName = match[1]
-    if (!fileTree[`server/${chunkName}`]) {
-      const data = await fetchFile(`${baseUrl}/server/${chunkName}`, log)
-      if (data) {
-        fileTree[`server/${chunkName}`] = { file: { contents: data } }
-      }
+      fileTree[chunkName] = { file: { contents: data } }
     }
   }
 
