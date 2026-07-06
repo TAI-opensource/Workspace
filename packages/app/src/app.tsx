@@ -495,9 +495,9 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
             </div>
           </Show>
 
-          <Show when={lastLogs.length > 0}>
+          <Show when={lastLogs().length > 0}>
             <div class="w-full max-w-lg h-40 overflow-auto bg-surface-base rounded-xl border border-border-base p-3 font-mono text-11-regular text-text-weak">
-              {lastLogs.map((line) => (
+              {lastLogs().map((line) => (
                 <div class="whitespace-pre-wrap break-all">{line}</div>
               ))}
             </div>
