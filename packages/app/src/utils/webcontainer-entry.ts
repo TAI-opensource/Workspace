@@ -40,6 +40,7 @@ async function mountServer(
           dependencies: {
             "wa-sqlite": "*",
             "drizzle-orm": "*",
+            "jsonc-parser": "*",
           },
         }),
       ),
@@ -102,7 +103,7 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
       new WritableStream({
         write(data) {
           const clean = stripAnsi(data).trim()
-          if (clean) log(`[npm] ${clean}`)
+          if (clean && clean.length > 1) log(`[npm] ${clean}`)
         },
       }),
     )

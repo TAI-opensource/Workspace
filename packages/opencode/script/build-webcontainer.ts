@@ -25,6 +25,7 @@ const result = await Bun.build({
   external: [
     "node-gyp",
     "wa-sqlite",
+    "jsonc-parser",
   ],
   format: "esm",
   minify: false,
