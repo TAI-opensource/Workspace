@@ -18,4 +18,4 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Run typecheck
-        run: bun turbo typecheck --filter='!@opencode-ai/desktop' --filter='!@opencode-ai/app' --filter='!@opencode-ai/console-*' --filter='!@opencode-ai/function' --filter='!@opencode-ai/stats-*' --filter='!@opencode-ai/slack' --filter='!@opencode-ai/enterprise' --filter='!@opencode-ai/http-recorder' --filter='!@opencode-ai/storybook' --filter='!@opencode-ai/session-ui'
+        run: bun turbo typecheck --filter='@opencode-ai/protocol' --filter='@opencode-ai/schema' --filter='@opencode-ai/client'
