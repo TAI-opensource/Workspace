@@ -22,5 +22,9 @@ for f in packages/opencode/dist/webcontainer/*.wasm; do
 done
 cp packages/opencode/dist/webcontainer/manifest.json packages/app/dist/server/
 
+echo "5. Copying to dist/ for Vercel..."
+rm -rf dist
+cp -r packages/app/dist dist
+
 echo "=== Build complete ==="
-du -sh packages/app/dist/
+du -sh dist/

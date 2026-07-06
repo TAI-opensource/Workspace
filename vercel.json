@@ -1,6 +1,6 @@
 {
   "buildCommand": "bash build.sh",
-  "outputDirectory": "packages/app/dist",
+  "outputDirectory": "dist",
   "framework": null,
   "installCommand": "bun install",
   "headers": [
