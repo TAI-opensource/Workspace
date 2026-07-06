@@ -16,6 +16,10 @@ if [ ! -f "server.js" ]; then
   ls -la
   exit 1
 fi
+echo "Installing runtime dependencies..."
+npm install wa-sqlite better-sqlite3 drizzle-orm 2>&1
+echo "Dependencies installed. Listing node_modules:"
+ls node_modules/ 2>/dev/null | head -20
 echo "Starting OpenCode server on port 3000..."
 exec node server.js serve --port 3000 --hostname 0.0.0.0
 `
@@ -78,6 +82,23 @@ async function mountServer(
 
   fileTree["start.sh"] = {
     file: { contents: new TextEncoder().encode(STARTUP_SCRIPT) },
+  }
+
+  // package.json for npm install
+  fileTree["package.json"] = {
+    file: {
+      contents: new TextEncoder().encode(
+        JSON.stringify({
+          name: "opencode-server",
+          private: true,
+          dependencies: {
+            "wa-sqlite": "*",
+            "better-sqlite3": "*",
+            "drizzle-orm": "*",
+          },
+        }),
+      ),
+    },
   }
 
   // Fetch and parse server.js

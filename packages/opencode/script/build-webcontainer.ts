@@ -24,6 +24,9 @@ const result = await Bun.build({
   tsconfig: "./tsconfig.json",
   external: [
     "node-gyp",
+    "wa-sqlite",
+    "better-sqlite3",
+    "drizzle-orm/better-sqlite3",
     "@opentui/core",
     "@opentui/core-linux-x64",
     "@opentui/core-linux-arm64",
