@@ -25,3 +25,4 @@ cp -r packages/app/dist dist
 
 echo "=== Build complete ==="
 du -sh dist/
+
