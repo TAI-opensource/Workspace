@@ -45,10 +45,34 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
         setLogs([])
 
         // Listen for server-ready event BEFORE booting
-        unsubServerReady = container.on("server-ready", (port, url) => {
+        unsubServerReady = container.on("server-ready", async (port, url) => {
           addLog(`[server-ready] Port ${port}: ${url}`)
-          setServerUrl(url)
-          setRunnerState("ready")
+
+          // Verify SDK connection via proxy before marking as ready
+          addLog("[health] Verifying SDK connection...")
+          try {
+            const res = await fetch("/api/proxy/global/config", {
+              method: "GET",
+              headers: { "X-WC-URL": url },
+              signal: AbortSignal.timeout(15000),
+            })
+            if (res.ok) {
+              addLog("[health] SDK connection OK — server is fully operational")
+              setServerUrl(url)
+              setRunnerState("ready")
+            } else {
+              const body = await res.text().catch(() => "")
+              const msg = `SDK health check failed: HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`
+              addLog(`[health] ${msg}`)
+              setError(msg)
+              setRunnerState("error")
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            addLog(`[health] SDK connection error: ${msg}`)
+            setError(`SDK connection failed: ${msg}`)
+            setRunnerState("error")
+          }
         })
 
         // Register timeout BEFORE bootOpenCode so it fires even if boot hangs
