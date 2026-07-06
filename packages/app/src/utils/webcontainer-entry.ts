@@ -1,32 +1,12 @@
 import type { WebContainer } from "@webcontainer/api"
 
-type BootState = "idle" | "mounting" | "starting" | "ready" | "error"
+type BootState = "idle" | "mounting" | "installing" | "starting" | "ready" | "error"
 
 type BootCallbacks = {
   onState?: (state: BootState) => void
   onOutput?: (line: string) => void
   onError?: (error: string) => void
 }
-
-const STARTUP_SCRIPT = `#!/bin/bash
-set -e
-echo "=== OpenCode WebContainer Server ==="
-if [ ! -f "server.js" ]; then
-  echo "ERROR: Server file not found at server.js"
-  ls -la
-  exit 1
-fi
-echo "Installing runtime dependencies..."
-npm install wa-sqlite drizzle-orm 2>&1
-echo "Dependencies installed. Listing node_modules:"
-ls node_modules/ 2>/dev/null | head -20
-echo "Starting OpenCode server on port 3000..."
-node -e "
-process.on('uncaughtException', (err) => { console.error('[UNCAUGHT]', err.message); process.exit(1); });
-process.on('unhandledRejection', (err) => { console.error('[UNHANDLED]', err); process.exit(1); });
-" 2>&1
-exec node server.js serve --port 3000 --hostname 0.0.0.0
-`
 
 async function fetchFile(url: string): Promise<Uint8Array | null> {
   try {
@@ -53,20 +33,18 @@ async function discoverFiles(
 
   discovered.set(filename, text)
 
-  // Discover .wasm imports
   const wasmRefs = [...text.matchAll(/["']\.\/([^"']+\.wasm)["']/g)]
   for (const match of wasmRefs) {
     const wasmName = match[1]
     if (!discovered.has(wasmName)) {
       const data = await fetchFile(`${baseUrl}/server/${wasmName}`)
       if (data) {
-        discovered.set(wasmName, "") // placeholder, WASM is binary
+        discovered.set(wasmName, "")
         log(`Discovered WASM: ${wasmName}`)
       }
     }
   }
 
-  // Only discover chunk imports if within depth limit
   if (depth < MAX_DISCOVERY_DEPTH) {
     const chunkRefs = [...text.matchAll(/["']\.\/(chunk-[^"']+)["']/g)]
     for (const match of chunkRefs) {
@@ -89,11 +67,6 @@ async function mountServer(
 ) {
   const fileTree: Record<string, { file: { contents: Uint8Array } }> = {}
 
-  fileTree["start.sh"] = {
-    file: { contents: new TextEncoder().encode(STARTUP_SCRIPT) },
-  }
-
-  // package.json for npm install
   fileTree["package.json"] = {
     file: {
       contents: new TextEncoder().encode(
@@ -109,13 +82,11 @@ async function mountServer(
     },
   }
 
-  // Fetch and parse server.js
   const serverJs = await fetchFile(`${baseUrl}/server/server.js`)
   if (!serverJs) throw new Error("server/server.js not found")
 
   log("Discovered server.js")
 
-  // Discover all files recursively from server.js (depth-limited)
   const discovered = new Map<string, string>()
   await discoverFiles(
     baseUrl,
@@ -127,7 +98,6 @@ async function mountServer(
 
   log(`Discovered ${discovered.size} files`)
 
-  // Fetch WASM files separately (they're binary, not text)
   for (const [filename] of discovered) {
     if (filename.endsWith(".wasm")) {
       const data = await fetchFile(`${baseUrl}/server/${filename}`)
@@ -138,7 +108,6 @@ async function mountServer(
     }
   }
 
-  // Mount text files (JS chunks)
   for (const [filename, text] of discovered) {
     if (!filename.endsWith(".wasm") && text) {
       fileTree[filename] = {
@@ -164,13 +133,34 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
 
     await mountServer(container, baseUrl, log)
 
-    const chmodProcess = await container.spawn("chmod", ["+x", "start.sh"])
-    await chmodProcess.exit
+    emit("installing")
+    log("Installing runtime dependencies (wa-sqlite, drizzle-orm)...")
+
+    const npmInstall = await container.spawn("npm", ["install", "--prefer-offline"])
+    npmInstall.output.pipeTo(
+      new WritableStream({
+        write(data) {
+          log(`[npm] ${data}`)
+        },
+      }),
+    )
+    const npmExit = await npmInstall.exit
+    if (npmExit !== 0) {
+      throw new Error(`npm install failed with exit code ${npmExit}`)
+    }
+    log("Dependencies installed successfully")
 
     emit("starting")
-    log("Starting OpenCode server...")
+    log("Starting OpenCode server on port 3000...")
 
-    const serverProcess = await container.spawn("sh", ["start.sh"])
+    const serverProcess = await container.spawn("node", [
+      "server.js",
+      "serve",
+      "--port",
+      "3000",
+      "--hostname",
+      "0.0.0.0",
+    ])
 
     serverProcess.output.pipeTo(
       new WritableStream({
@@ -180,7 +170,6 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
       }),
     )
 
-    // Monitor process exit
     serverProcess.exit.then((code) => {
       log(`[process] Server exited with code ${code}`)
       if (code !== 0) {

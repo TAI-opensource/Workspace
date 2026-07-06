@@ -25,8 +25,6 @@ const result = await Bun.build({
   external: [
     "node-gyp",
     "wa-sqlite",
-    "better-sqlite3",
-    "drizzle-orm/better-sqlite3",
     "@opentui/core",
     "@opentui/core-linux-x64",
     "@opentui/core-linux-arm64",
@@ -37,7 +35,7 @@ const result = await Bun.build({
   ],
   format: "esm",
   minify: false,
-  sourcemap: "linked",
+  sourcemap: "none",
   splitting: true,
   entrypoints: ["./src/server/server.ts"],
   define: {

@@ -190,65 +190,9 @@ const nativeLayer = (config: Config) =>
 
 const sqliteLayer = (config: Config) => Layer.effect(Client.SqlClient, make(config))
 
-const drizzleLayer = Layer.effect(
-  Sqlite.Drizzle,
-  Effect.gen(function* () {
-    const db = yield* Effect.promise(async () => {
-      const { default: initSqlJs } = await import("wa-sqlite")
-      const SQLite = await initSqlJs()
-      const waDb = await SQLite.open(config.filename === ":memory:" ? undefined : config.filename)
-
-      // Create a compatible interface for drizzle
-      const compatibleDb = {
-        exec: (sql: string) => {
-          const results: any[] = []
-          const iter = waDb.exec(sql)
-          let result = iter.next()
-          while (!result.done) {
-            results.push(result.value)
-            result = iter.next()
-          }
-          return results
-        },
-        prepare: (sql: string) => ({
-          run: (...params: any[]) => {
-            const results: any[] = []
-            const iter = waDb.exec(sql, params)
-            let result = iter.next()
-            while (!result.done) {
-              results.push(result.value)
-              result = iter.next()
-            }
-            return { changes: results.length }
-          },
-          all: (...params: any[]) => {
-            const results: any[] = []
-            const iter = waDb.exec(sql, params)
-            let result = iter.next()
-            while (!result.done) {
-              results.push(result.value)
-              result = iter.next()
-            }
-            return results
-          },
-          get: (...params: any[]) => {
-            const iter = waDb.exec(sql, params)
-            const result = iter.next()
-            return result.done ? undefined : result.value
-          },
-        }),
-      }
-
-      const { drizzle } = await import("drizzle-orm/better-sqlite3")
-      return drizzle(compatibleDb)
-    })
-    return db as unknown as Sqlite.DrizzleClient
-  }),
-)
-
 export const layer = (config: Config) => {
   const native = nativeLayer(config)
-  return Layer.merge(native, Layer.merge(sqliteLayer(config), drizzleLayer).pipe(Layer.provide(native))).pipe(
+  return Layer.merge(native, sqliteLayer(config)).pipe(
     Layer.provide(Reactivity.layer),
   )
 }
