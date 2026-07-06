@@ -53,6 +53,7 @@ import LegacyLayout from "@/pages/layout"
 import NewLayout from "@/pages/layout-new"
 import { ErrorPage } from "./pages/error"
 import { ConnectionGuide } from "./components/connection-guide"
+import { isWebContainerEnv } from "./utils/server"
 import { useCheckServerHealth } from "./utils/server-health"
 import { legacySessionServer, requireServerKey, sessionHref } from "./utils/session-route"
 
@@ -360,14 +361,6 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
       </WebContainerRunnerProvider>
     </WebContainerProvider>
   )
-}
-
-function isWebContainerEnv() {
-  try {
-    return typeof SharedArrayBuffer !== "undefined" && location.hostname.includes("vercel.app")
-  } catch {
-    return false
-  }
 }
 
 function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {

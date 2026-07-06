@@ -17,6 +17,14 @@ export function authFromToken(token: string | null) {
   }
 }
 
+export function isWebContainerEnv() {
+  try {
+    return typeof SharedArrayBuffer !== "undefined" && location.hostname.includes("vercel.app")
+  } catch {
+    return false
+  }
+}
+
 export function createSdkForServer({
   server,
   ...config
@@ -30,12 +38,17 @@ export function createSdkForServer({
     }
   })()
 
+  const isWc = isWebContainerEnv()
+
   return createOpencodeClient({
     ...config,
     headers: {
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
+      // In WebContainer mode, pass the target URL via header so the proxy knows where to forward
+      ...(isWc ? { "X-WC-URL": server.url } : {}),
     },
-    baseUrl: server.url,
+    // In WebContainer mode, route through the serverless proxy to bypass CORS
+    baseUrl: isWc ? "/api/proxy" : server.url,
   })
 }

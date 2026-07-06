@@ -180,6 +180,9 @@ if (root instanceof HTMLElement) {
       ...auth,
     },
   }
+  // In WebContainer mode, don't pass the initial server — WebContainerGate
+  // handles adding the real server URL from the server-ready event.
+  const isWc = isWebContainer()
   render(
     () => (
       <PlatformProvider value={platform}>
@@ -187,7 +190,7 @@ if (root instanceof HTMLElement) {
           <AppInterface
             defaultServer={ServerConnection.Key.make(getDefaultUrl())}
             canonicalLocalServer={ServerConnection.key(server)}
-            servers={[server]}
+            servers={isWc ? [] : [server]}
             disableHealthCheck
           />
         </AppBaseProviders>
