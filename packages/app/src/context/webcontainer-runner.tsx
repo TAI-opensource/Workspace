@@ -53,7 +53,7 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
           try {
             const res = await fetch("/api/proxy/global/config", {
               method: "GET",
-              headers: { "X-WC-URL": url },
+              headers: { "X-WC-URL": url + "/global/config" },
               signal: AbortSignal.timeout(15000),
             })
             if (res.ok) {

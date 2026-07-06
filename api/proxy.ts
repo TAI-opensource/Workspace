@@ -22,12 +22,6 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  const url = new URL(req.url)
-  const pathAndQuery = url.pathname.startsWith("/api/proxy")
-    ? url.pathname.slice("/api/proxy".length) || "/"
-    : url.pathname
-  const targetUrl = new URL(pathAndQuery + url.search, wcUrl)
-
   const fetchHeaders = new Headers()
   for (const key of ["content-type", "x-opencode-directory", "authorization"]) {
     const val = req.headers.get(key)
@@ -35,7 +29,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const response = await fetch(targetUrl.toString(), {
+    const response = await fetch(wcUrl, {
       method: req.method,
       headers: fetchHeaders,
       body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,

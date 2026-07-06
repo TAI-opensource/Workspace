@@ -40,15 +40,40 @@ export function createSdkForServer({
 
   const isWc = isWebContainerEnv()
 
+  if (isWc) {
+    const baseHeaders = {
+      ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
+      ...auth,
+    }
+
+    const wrappedFetch: typeof fetch = (input, init) => {
+      const req = input instanceof Request ? input : new Request(input, init)
+      const reqUrl = new URL(req.url)
+      const pathAndQuery = reqUrl.pathname + reqUrl.search
+      const fullTargetUrl = server.url + pathAndQuery
+      const newReq = new Request("/api/proxy", {
+        method: req.method,
+        headers: req.headers,
+        body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+      })
+      newReq.headers.set("X-WC-URL", fullTargetUrl)
+      return fetch(newReq)
+    }
+
+    return createOpencodeClient({
+      ...config,
+      fetch: wrappedFetch,
+      headers: baseHeaders,
+      baseUrl: "/api/proxy",
+    })
+  }
+
   return createOpencodeClient({
     ...config,
     headers: {
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
-      // In WebContainer mode, pass the target URL via header so the proxy knows where to forward
-      ...(isWc ? { "X-WC-URL": server.url } : {}),
     },
-    // In WebContainer mode, route through the serverless proxy to bypass CORS
-    baseUrl: isWc ? "/api/proxy" : server.url,
+    baseUrl: server.url,
   })
 }
