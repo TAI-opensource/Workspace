@@ -31,7 +31,7 @@ const result = await Bun.build({
   minify: false,
   sourcemap: "none",
   splitting: true,
-  entrypoints: ["./src/server/server.ts"],
+  entrypoints: ["./src/server/webcontainer-serve.ts"],
   define: {
     OPENCODE_VERSION: `'${pkg.version}'`,
     OPENCODE_MODELS_DEV: generated.modelsData,

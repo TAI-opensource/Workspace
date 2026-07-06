@@ -118,12 +118,7 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
     log("Starting OpenCode server on port 3000...")
 
     const serverProcess = await container.spawn("node", [
-      "server.js",
-      "serve",
-      "--port",
-      "3000",
-      "--hostname",
-      "0.0.0.0",
+      "webcontainer-serve.js",
     ])
 
     serverProcess.output.pipeTo(
