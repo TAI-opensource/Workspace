@@ -23,6 +23,9 @@ echo "4. Copying to dist/ for Vercel..."
 rm -rf dist
 cp -r packages/app/dist dist
 
+# Skip Vercel's TypeScript typecheck to avoid OOM on free tier
+echo '{"compilerOptions":{"noEmit":true,"skipLibCheck":true}}' > tsconfig.json
+
 echo "=== Build complete ==="
 du -sh dist/
 

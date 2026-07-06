@@ -2,7 +2,7 @@
   "buildCommand": "bash build.sh",
   "outputDirectory": "dist",
   "framework": null,
-  "installCommand": "bun install",
+  "installCommand": "bun install --ignore-scripts",
   "headers": [
     {
       "source": "/(.*)",
