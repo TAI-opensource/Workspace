@@ -17,10 +17,14 @@ if [ ! -f "server.js" ]; then
   exit 1
 fi
 echo "Installing runtime dependencies..."
-npm install wa-sqlite better-sqlite3 drizzle-orm 2>&1
+npm install wa-sqlite drizzle-orm 2>&1
 echo "Dependencies installed. Listing node_modules:"
 ls node_modules/ 2>/dev/null | head -20
 echo "Starting OpenCode server on port 3000..."
+node -e "
+process.on('uncaughtException', (err) => { console.error('[UNCAUGHT]', err.message); process.exit(1); });
+process.on('unhandledRejection', (err) => { console.error('[UNHANDLED]', err); process.exit(1); });
+" 2>&1
 exec node server.js serve --port 3000 --hostname 0.0.0.0
 `
 
@@ -34,14 +38,18 @@ async function fetchFile(url: string): Promise<Uint8Array | null> {
   }
 }
 
+const MAX_DISCOVERY_DEPTH = 3
+
 async function discoverFiles(
   baseUrl: string,
   filename: string,
   text: string,
   discovered: Map<string, string>,
   log: (line: string) => void,
+  depth: number = 0,
 ): Promise<void> {
   if (discovered.has(filename)) return
+  if (depth > MAX_DISCOVERY_DEPTH) return
 
   discovered.set(filename, text)
 
@@ -52,22 +60,23 @@ async function discoverFiles(
     if (!discovered.has(wasmName)) {
       const data = await fetchFile(`${baseUrl}/server/${wasmName}`)
       if (data) {
-        const wasmText = new TextDecoder().decode(data)
-        discovered.set(wasmName, wasmText) // store as Uint8Array for binary
+        discovered.set(wasmName, "") // placeholder, WASM is binary
         log(`Discovered WASM: ${wasmName}`)
       }
     }
   }
 
-  // Discover chunk imports
-  const chunkRefs = [...text.matchAll(/["']\.\/(chunk-[^"']+)["']/g)]
-  for (const match of chunkRefs) {
-    const chunkName = match[1]
-    if (!discovered.has(chunkName)) {
-      const data = await fetchFile(`${baseUrl}/server/${chunkName}`)
-      if (data) {
-        log(`Discovered chunk: ${chunkName}`)
-        await discoverFiles(baseUrl, chunkName, new TextDecoder().decode(data), discovered, log)
+  // Only discover chunk imports if within depth limit
+  if (depth < MAX_DISCOVERY_DEPTH) {
+    const chunkRefs = [...text.matchAll(/["']\.\/(chunk-[^"']+)["']/g)]
+    for (const match of chunkRefs) {
+      const chunkName = match[1]
+      if (!discovered.has(chunkName)) {
+        const data = await fetchFile(`${baseUrl}/server/${chunkName}`)
+        if (data) {
+          log(`Discovered chunk: ${chunkName}`)
+          await discoverFiles(baseUrl, chunkName, new TextDecoder().decode(data), discovered, log, depth + 1)
+        }
       }
     }
   }
@@ -93,7 +102,6 @@ async function mountServer(
           private: true,
           dependencies: {
             "wa-sqlite": "*",
-            "better-sqlite3": "*",
             "drizzle-orm": "*",
           },
         }),
@@ -107,7 +115,7 @@ async function mountServer(
 
   log("Discovered server.js")
 
-  // Discover all files recursively from server.js
+  // Discover all files recursively from server.js (depth-limited)
   const discovered = new Map<string, string>()
   await discoverFiles(
     baseUrl,
@@ -117,29 +125,32 @@ async function mountServer(
     log,
   )
 
+  log(`Discovered ${discovered.size} files`)
+
   // Fetch WASM files separately (they're binary, not text)
   for (const [filename] of discovered) {
     if (filename.endsWith(".wasm")) {
       const data = await fetchFile(`${baseUrl}/server/${filename}`)
       if (data) {
         fileTree[filename] = { file: { contents: data } }
-        log(`Fetched ${filename}`)
+        log(`Fetched ${filename} (${(data.byteLength / 1024).toFixed(0)} KB)`)
       }
     }
   }
 
   // Mount text files (JS chunks)
   for (const [filename, text] of discovered) {
-    if (!filename.endsWith(".wasm")) {
+    if (!filename.endsWith(".wasm") && text) {
       fileTree[filename] = {
         file: { contents: new TextEncoder().encode(text) },
       }
     }
   }
 
-  log(`Mounting ${Object.keys(fileTree).length} files...`)
+  const fileCount = Object.keys(fileTree).length
+  log(`Mounting ${fileCount} files...`)
   await container.mount(fileTree, { mode: "keep" })
-  log("Files mounted")
+  log(`Mounted ${fileCount} files successfully`)
 }
 
 export async function bootOpenCode(container: WebContainer, callbacks?: BootCallbacks) {
@@ -168,6 +179,14 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
         },
       }),
     )
+
+    // Monitor process exit
+    serverProcess.exit.then((code) => {
+      log(`[process] Server exited with code ${code}`)
+      if (code !== 0) {
+        err(`Server process exited with code ${code}`)
+      }
+    })
 
     const unsub = container.on("server-ready", (port, url) => {
       log(`Server ready on port ${port}: ${url}`)

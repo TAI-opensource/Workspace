@@ -51,6 +51,14 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
           setRunnerState("ready")
         })
 
+        // Register timeout BEFORE bootOpenCode so it fires even if boot hangs
+        const timeoutId = setTimeout(() => {
+          if (runnerState() === "booting") {
+            setError("Server did not start within 90 seconds. Check the logs below.")
+            setRunnerState("error")
+          }
+        }, 90000)
+
         const result = await bootOpenCode(container, {
           onState: (state) => {
             addLog(`[state] ${state}`)
@@ -65,13 +73,8 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
 
         stopFn = result.stop
 
-        // If server-ready wasn't fired yet, show error
-        setTimeout(() => {
-          if (runnerState() === "booting") {
-            setError("Server did not start within 60 seconds. Check the logs below.")
-            setRunnerState("error")
-          }
-        }, 60000)
+        // Clear timeout if server started successfully
+        clearTimeout(timeoutId)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setRunnerState("error")
