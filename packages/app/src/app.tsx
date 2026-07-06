@@ -45,7 +45,8 @@ import { SettingsProvider, useSettings } from "@/context/settings"
 import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { WebContainerProvider } from "@/context/webcontainer"
-import { WebContainerRunnerProvider } from "@/context/webcontainer-runner"
+import { useWebContainer, type WebContainerState } from "@/context/webcontainer"
+import { WebContainerRunnerProvider, useWebContainerRunner } from "@/context/webcontainer-runner"
 import { WslServersProvider } from "@/wsl/context"
 import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
 import LegacyLayout from "@/pages/layout"
@@ -361,9 +362,18 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
   )
 }
 
+function isWebContainerEnv() {
+  try {
+    return typeof SharedArrayBuffer !== "undefined" && location.hostname.includes("vercel.app")
+  } catch {
+    return false
+  }
+}
+
 function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   const server = useServer()
   const checkServerHealth = useCheckServerHealth()
+  const isWc = isWebContainerEnv()
 
   const [checkMode, setCheckMode] = createSignal<"blocking" | "background">("blocking")
 
@@ -382,7 +392,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   }
 
   const [startupHealthCheck, healthCheckActions] = createResource(() =>
-    props.disableHealthCheck
+    isWc || props.disableHealthCheck
       ? quickConnectCheck()
       : Effect.gen(function* () {
           if (!server.current) return true
@@ -402,6 +412,10 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   const checking = createMemo(
     () => checkMode() === "blocking" && ["unresolved", "pending"].includes(startupHealthCheck.state),
   )
+
+  if (isWc) {
+    return <WebContainerGate server={server}>{props.children}</WebContainerGate>
+  }
 
   return (
     <Show
@@ -424,6 +438,82 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
       >
         {props.children}
       </Show>
+    </Show>
+  )
+}
+
+function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServer> }>) {
+  const wc = useWebContainer()
+  const runner = useWebContainerRunner()
+  const [bootAttempt, setBootAttempt] = createSignal(0)
+
+  createEffect(() => {
+    if (wc.state() === "ready" && runner.runnerState() === "idle") {
+      runner.start()
+    }
+  })
+
+  createEffect(() => {
+    if (runner.runnerState() === "ready" && runner.serverUrl()) {
+      const url = runner.serverUrl()!
+      props.server.add({
+        type: "http",
+        http: { url },
+      })
+    }
+  })
+
+  const handleRetry = async () => {
+    await runner.stop()
+    wc.boot()
+    setBootAttempt((a) => a + 1)
+  }
+
+  const logs = runner.logs()
+  const lastLogs = logs.slice(-15)
+
+  return (
+    <Show
+      when={runner.runnerState() === "ready" && runner.serverUrl()}
+      fallback={
+        <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base gap-6 p-6">
+          <Splash class="w-12 h-15 opacity-60" />
+          <div class="flex flex-col items-center gap-2">
+            <span class="text-16-semibold text-text-strong">Starting OpenCode</span>
+            <span class="text-14-regular text-text-weak">
+              {wc.state() === "idle" || wc.state() === "booting"
+                ? "Initializing WebContainer..."
+                : runner.runnerState() === "booting"
+                  ? "Setting up the server..."
+                  : "Connecting..."}
+            </span>
+          </div>
+
+          <Show when={runner.error()}>
+            <div class="w-full max-w-lg bg-error-subtle rounded-xl p-4">
+              <p class="text-12-regular text-error-base break-all">{runner.error()}</p>
+            </div>
+          </Show>
+
+          <Show when={lastLogs.length > 0}>
+            <div class="w-full max-w-lg h-40 overflow-auto bg-surface-base rounded-xl border border-border-base p-3 font-mono text-11-regular text-text-weak">
+              {lastLogs.map((line) => (
+                <div class="whitespace-pre-wrap break-all">{line}</div>
+              ))}
+            </div>
+          </Show>
+
+          <button
+            type="button"
+            class="px-6 py-2 rounded-lg bg-info-base text-text-inverted text-14-medium hover:opacity-90 transition-opacity"
+            onClick={handleRetry}
+          >
+            Try again
+          </button>
+        </div>
+      }
+    >
+      {props.children}
     </Show>
   )
 }
