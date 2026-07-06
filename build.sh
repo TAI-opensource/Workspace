@@ -3,16 +3,13 @@ set -e
 
 echo "=== Building OpenCode for WebContainer ==="
 
-echo "1. Installing dependencies..."
-bun install
-
-echo "2. Building server for WebContainer..."
+echo "1. Building server for WebContainer..."
 bun run --cwd packages/opencode build:webcontainer
 
-echo "3. Building frontend..."
+echo "2. Building frontend..."
 bun run --cwd packages/app build
 
-echo "4. Copying server to frontend assets..."
+echo "3. Copying server to frontend assets..."
 mkdir -p packages/app/dist/server
 for f in packages/opencode/dist/webcontainer/*.js; do
   cp "$f" packages/app/dist/server/
@@ -22,7 +19,7 @@ for f in packages/opencode/dist/webcontainer/*.wasm; do
 done
 cp packages/opencode/dist/webcontainer/manifest.json packages/app/dist/server/
 
-echo "5. Copying to dist/ for Vercel..."
+echo "4. Copying to dist/ for Vercel..."
 rm -rf dist
 cp -r packages/app/dist dist
 
