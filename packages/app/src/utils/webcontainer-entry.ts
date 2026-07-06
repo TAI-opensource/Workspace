@@ -1,6 +1,6 @@
 import type { WebContainer } from "@webcontainer/api"
 
-type BootState = "idle" | "mounting" | "installing" | "starting" | "ready" | "error"
+type BootState = "idle" | "mounting" | "installing" | "building" | "starting" | "ready" | "error"
 
 type BootCallbacks = {
   onState?: (state: BootState) => void
@@ -8,247 +8,31 @@ type BootCallbacks = {
   onError?: (error: string) => void
 }
 
-// Minimal server code that runs in WebContainer
-const SERVER_CODE = `
-import { createServer } from "node:http";
-import { readdir, readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { join, dirname } from "node:path";
+// The server startup script that runs inside WebContainer
+const SERVER_STARTUP_SCRIPT = `
+#!/bin/bash
+set -e
 
-const PORT = parseInt(process.env.PORT || "3000");
-const HOSTNAME = process.env.HOSTNAME || "0.0.0.0";
-const WORKSPACE_DIR = process.env.WORKSPACE_DIR || "/workspace";
+echo "=== OpenCode WebContainer Server ==="
+echo "Starting server..."
 
-// Simple in-memory database
-const db = {
-  sessions: new Map(),
-  messages: new Map(),
-  parts: new Map(),
-};
+# Check if node is available
+if ! command -v node &> /dev/null; then
+  echo "ERROR: node is not available"
+  exit 1
+fi
 
-// CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-opencode-directory",
-  "Access-Control-Expose-Headers": "x-opencode-directory",
-};
+# Check if the server file exists
+if [ ! -f "packages/opencode/dist/index.js" ]; then
+  echo "ERROR: Server file not found at packages/opencode/dist/index.js"
+  echo "Available files:"
+  ls -la
+  exit 1
+fi
 
-// JSON response helper
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders,
-    },
-  });
-}
-
-// Error response helper
-function error(message, status = 500) {
-  return json({ error: message }, status);
-}
-
-// Parse request body
-async function parseBody(request) {
-  const contentType = request.headers.get("content-type");
-  if (contentType?.includes("application/json")) {
-    return await request.json();
-  }
-  return null;
-}
-
-// Generate ID
-function generateId() {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-}
-
-// Route handlers
-const routes = {
-  "GET /": async () => {
-    return json({ status: "ok", version: "1.0.0-webcontainer" });
-  },
-  "GET /session": async () => {
-    const sessions = Array.from(db.sessions.values());
-    return json(sessions);
-  },
-  "POST /session": async (request) => {
-    const body = await parseBody(request);
-    const id = generateId();
-    const session = {
-      id,
-      title: body?.title || "New Session",
-      directory: body?.directory || WORKSPACE_DIR,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    };
-    db.sessions.set(id, session);
-    db.messages.set(id, []);
-    return json(session, 201);
-  },
-  "GET /session/:id": async (request, params) => {
-    const session = db.sessions.get(params.id);
-    if (!session) return error("Session not found", 404);
-    return json(session);
-  },
-  "DELETE /session/:id": async (request, params) => {
-    if (!db.sessions.has(params.id)) return error("Session not found", 404);
-    db.sessions.delete(params.id);
-    db.messages.delete(params.id);
-    db.parts.delete(params.id);
-    return json({ success: true });
-  },
-  "GET /session/:id/message": async (request, params) => {
-    const messages = db.messages.get(params.id) || [];
-    return json(messages);
-  },
-  "POST /session/:id/message": async (request, params) => {
-    const body = await parseBody(request);
-    const messages = db.messages.get(params.id) || [];
-    const message = {
-      id: generateId(),
-      session_id: params.id,
-      role: body?.role || "user",
-      content: body?.content || "",
-      created_at: Date.now(),
-    };
-    messages.push(message);
-    db.messages.set(params.id, messages);
-    return json(message, 201);
-  },
-  "GET /session/:id/message/:messageId/part": async (request, params) => {
-    const parts = db.parts.get(params.messageId) || [];
-    return json(parts);
-  },
-  "POST /session/:id/message/:messageId/part": async (request, params) => {
-    const body = await parseBody(request);
-    const parts = db.parts.get(params.messageId) || [];
-    const part = {
-      id: generateId(),
-      message_id: params.messageId,
-      type: body?.type || "text",
-      content: body?.content || "",
-      created_at: Date.now(),
-    };
-    parts.push(part);
-    db.parts.set(params.messageId, parts);
-    return json(part, 201);
-  },
-  "GET /files": async (request) => {
-    const url = new URL(request.url);
-    const path = url.searchParams.get("path") || "/";
-    const fullPath = join(WORKSPACE_DIR, path);
-    try {
-      const entries = await readdir(fullPath, { withFileTypes: true });
-      const files = await Promise.all(
-        entries.map(async (entry) => {
-          const entryPath = join(fullPath, entry.name);
-          const stats = await stat(entryPath);
-          return {
-            name: entry.name,
-            path: join(path, entry.name),
-            isDirectory: entry.isDirectory(),
-            size: stats.size,
-            modified: stats.mtime.toISOString(),
-          };
-        })
-      );
-      return json(files);
-    } catch {
-      return error("Directory not found", 404);
-    }
-  },
-  "GET /file": async (request) => {
-    const url = new URL(request.url);
-    const path = url.searchParams.get("path");
-    if (!path) return error("Path required", 400);
-    const fullPath = join(WORKSPACE_DIR, path);
-    try {
-      const content = await readFile(fullPath, "utf-8");
-      return json({ path, content });
-    } catch {
-      return error("File not found", 404);
-    }
-  },
-  "POST /file": async (request) => {
-    const body = await parseBody(request);
-    if (!body?.path || body.content === undefined) return error("Path and content required", 400);
-    const fullPath = join(WORKSPACE_DIR, body.path);
-    const dir = dirname(fullPath);
-    try {
-      await mkdir(dir, { recursive: true });
-      await writeFile(fullPath, body.content, "utf-8");
-      return json({ success: true });
-    } catch (e) {
-      return error("Failed to write file");
-    }
-  },
-};
-
-// Match route pattern
-function matchRoute(pattern, method, path) {
-  const [routeMethod, routePattern] = pattern.split(" ");
-  if (routeMethod !== method) return { matched: false, params: {} };
-  const routeParts = routePattern.split("/");
-  const pathParts = path.split("/");
-  if (routeParts.length !== pathParts.length) return { matched: false, params: {} };
-  const params = {};
-  for (let i = 0; i < routeParts.length; i++) {
-    if (routeParts[i].startsWith(":")) {
-      params[routeParts[i].slice(1)] = pathParts[i];
-    } else if (routeParts[i] !== pathParts[i]) {
-      return { matched: false, params: {} };
-    }
-  }
-  return { matched: true, params };
-}
-
-// Request handler
-async function handler(request) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method;
-  if (method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  for (const [pattern, handler] of Object.entries(routes)) {
-    const { matched, params } = matchRoute(pattern, method, path);
-    if (matched) {
-      try {
-        return await handler(request, params);
-      } catch (e) {
-        console.error("Handler error:", e);
-        return error("Internal server error");
-      }
-    }
-  }
-  return error("Not found", 404);
-}
-
-// Create server
-const server = createServer((req, res) => {
-  const request = new Request(\`http://\${req.headers.host || "localhost"}\${req.url}\`, {
-    method: req.method,
-    headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => typeof k === "string")),
-    body: req.method !== "GET" && req.method !== "HEAD" ? req : undefined,
-  });
-  handler(request).then(
-    async (response) => {
-      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
-      const body = await response.text();
-      res.end(body);
-    },
-    (err) => {
-      console.error("Server error:", err);
-      res.writeHead(500);
-      res.end("Internal server error");
-    }
-  );
-});
-
-server.listen(PORT, HOSTNAME, () => {
-  console.log(\`OpenCode WebContainer server listening on http://\${HOSTNAME}:\${PORT}\`);
-});
+# Start the server
+echo "Starting OpenCode server on port 3000..."
+exec node packages/opencode/dist/index.js serve --port 3000 --hostname 0.0.0.0
 `
 
 export async function bootOpenCode(container: WebContainer, callbacks?: BootCallbacks) {
@@ -258,21 +42,132 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
 
   try {
     emit("mounting")
-    log("Mounting filesystem...")
+    log("Preparing WebContainer environment...")
 
-    // Write the server code
+    // Create the startup script
     await container.mount({
-      "server.mjs": { file: { contents: SERVER_CODE } },
+      "start.sh": { file: { contents: SERVER_STARTUP_SCRIPT } },
     })
+
+    // Make the script executable
+    const chmodProcess = await container.spawn("chmod", ["+x", "start.sh"])
+    await chmodProcess.exit
+
+    emit("installing")
+    log("Checking for pre-built server...")
+
+    // Check if we have a pre-built server
+    const checkProcess = await container.spawn("sh", ["-c", "ls packages/opencode/dist/index.js 2>/dev/null || echo 'NO_PREBUILT'"])
+    let hasPrebuilt = false
+
+    checkProcess.output.pipeTo(
+      new WritableStream({
+        write(data) {
+          if (data.includes("NO_PREBUILT")) {
+            hasPrebuilt = false
+          } else if (data.includes("index.js")) {
+            hasPrebuilt = true
+          }
+        },
+      }),
+    )
+    await checkProcess.exit
+
+    if (!hasPrebuilt) {
+      log("No pre-built server found. Building from source...")
+      emit("building")
+
+      // Clone the repository
+      log("Cloning OpenCode repository...")
+      const cloneProcess = await container.spawn("sh", [
+        "-c",
+        `
+        # Clone the repo
+        git clone --depth 1 https://github.com/anomalyco/opencode.git /tmp/opencode 2>&1 || {
+          echo "Git clone failed, trying to download tarball..."
+          curl -L https://github.com/anomalyco/opencode/archive/refs/heads/dev.tar.gz | tar xz -C /tmp 2>&1
+          mv /tmp/opencode-dev /tmp/opencode 2>/dev/null || true
+        }
+        
+        # Copy files to workspace
+        cp -r /tmp/opencode/* . 2>/dev/null || true
+        cp -r /tmp/opencode/.* . 2>/dev/null || true
+        
+        echo "Repository ready"
+        `,
+      ])
+
+      cloneProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            log(data)
+          },
+        }),
+      )
+
+      const cloneExit = await cloneProcess.exit
+      if (cloneExit !== 0) {
+        throw new Error(`Failed to clone repository: exit code ${cloneExit}`)
+      }
+
+      // Install dependencies
+      log("Installing dependencies (this may take a few minutes)...")
+      const installProcess = await container.spawn("sh", [
+        "-c",
+        `
+        # Install bun first
+        curl -fsSL https://bun.sh/install | bash 2>&1 || true
+        export PATH="$HOME/.bun/bin:$PATH"
+        
+        # Install dependencies
+        bun install 2>&1
+        `,
+      ])
+
+      installProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            log(data)
+          },
+        }),
+      )
+
+      const installExit = await installProcess.exit
+      if (installExit !== 0) {
+        throw new Error(`Failed to install dependencies: exit code ${installExit}`)
+      }
+
+      // Build the server
+      log("Building the server (this may take a few minutes)...")
+      const buildProcess = await container.spawn("sh", [
+        "-c",
+        `
+        export PATH="$HOME/.bun/bin:$PATH"
+        bun run --cwd packages/opencode build 2>&1
+        `,
+      ])
+
+      buildProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            log(data)
+          },
+        }),
+      )
+
+      const buildExit = await buildProcess.exit
+      if (buildExit !== 0) {
+        throw new Error(`Failed to build server: exit code ${buildExit}`)
+      }
+    } else {
+      log("Found pre-built server, skipping build...")
+    }
 
     emit("starting")
     log("Starting OpenCode server...")
 
     // Start the server
-    const serverProcess = await container.spawn("node", [
-      "--experimental-vm-modules",
-      "server.mjs",
-    ])
+    const serverProcess = await container.spawn("sh", ["start.sh"])
 
     serverProcess.output.pipeTo(
       new WritableStream({
@@ -285,10 +180,12 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
       }),
     )
 
-    const serverExit = await serverProcess.exit
-    if (serverExit !== 0) {
-      throw new Error(`Server exited with code ${serverExit}`)
-    }
+    // Listen for the server-ready event
+    const unsub = container.on("server-ready", (port, url) => {
+      log(`Server ready on port ${port}: ${url}`)
+      emit("ready")
+      unsub()
+    })
 
     return {
       stop: async () => {

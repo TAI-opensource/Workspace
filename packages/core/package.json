@@ -24,11 +24,13 @@
   },
   "imports": {
     "#sqlite": {
+      "webcontainer": "./src/database/sqlite.webcontainer.ts",
       "bun": "./src/database/sqlite.bun.ts",
       "node": "./src/database/sqlite.node.ts",
       "default": "./src/database/sqlite.bun.ts"
     },
     "#pty": {
+      "webcontainer": "./src/pty/pty.webcontainer.ts",
       "bun": "./src/pty/pty.bun.ts",
       "node": "./src/pty/pty.node.ts",
       "default": "./src/pty/pty.bun.ts"
@@ -37,6 +39,12 @@
       "bun": "./src/filesystem/fff.bun.ts",
       "node": "./src/filesystem/fff.node.ts",
       "default": "./src/filesystem/fff.bun.ts"
+    },
+    "#watcher": {
+      "webcontainer": "./src/filesystem/watcher.webcontainer.ts",
+      "bun": "./src/filesystem/watcher.ts",
+      "node": "./src/filesystem/watcher.ts",
+      "default": "./src/filesystem/watcher.ts"
     }
   },
   "devDependencies": {

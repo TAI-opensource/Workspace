@@ -107,8 +107,10 @@ const isWebContainer = () => {
   }
 }
 
+// For WebContainer, we start with a placeholder URL
+// The actual URL will be provided by the WebContainerRunner via the server-ready event
 const getCurrentUrl = () => {
-  if (isWebContainer()) return "http://localhost:3000"
+  if (isWebContainer()) return "http://localhost:3000" // Placeholder, will be overridden
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.VERCEL) {
     const host = import.meta.env.VITE_OPENCODE_SERVER_HOST || "localhost"

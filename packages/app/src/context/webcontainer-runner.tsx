@@ -24,6 +24,7 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
     const [error, setError] = createSignal<string | null>(null)
 
     let stopFn: (() => Promise<void>) | null = null
+    let unsubServerReady: (() => void) | null = null
 
     const addLog = (line: string) => {
       setLogs((prev) => [...prev.slice(-100), line])
@@ -43,6 +44,13 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
         setError(null)
         setLogs([])
 
+        // Listen for server-ready event BEFORE booting
+        unsubServerReady = container.on("server-ready", (port, url) => {
+          addLog(`[server-ready] Port ${port}: ${url}`)
+          setServerUrl(url)
+          setRunnerState("ready")
+        })
+
         const result = await bootOpenCode(container, {
           onState: (state) => {
             addLog(`[state] ${state}`)
@@ -56,8 +64,15 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
         })
 
         stopFn = result.stop
-        setServerUrl("http://localhost:3000")
-        setRunnerState("ready")
+
+        // If server-ready wasn't fired yet, set a timeout
+        setTimeout(() => {
+          if (runnerState() === "booting") {
+            // Fallback: assume server is ready
+            setServerUrl("http://localhost:3000")
+            setRunnerState("ready")
+          }
+        }, 30000) // 30 second timeout
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setRunnerState("error")
@@ -65,6 +80,10 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
     }
 
     const stop = async () => {
+      if (unsubServerReady) {
+        unsubServerReady()
+        unsubServerReady = null
+      }
       if (stopFn) {
         await stopFn()
         stopFn = null
@@ -115,7 +134,7 @@ export function WebContainerRunnerShell(props: ParentProps) {
             <span class="text-14-medium text-text-base">
               {wc.state() === "ready" ? "Starting OpenCode server..." : "Initializing WebContainer..."}
             </span>
-          </Show>
+          </div>
 
           <Show when={runner.logs().length > 0}>
             <div class="w-full max-w-md h-32 overflow-auto bg-background-base rounded-lg border border-border-base p-2 font-mono text-11-regular text-text-weak">
