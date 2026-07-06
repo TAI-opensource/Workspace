@@ -460,9 +460,14 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
     if (runner.runnerState() === "ready" && runner.serverUrl()) {
       const url = runner.serverUrl()!
 
-      // Remove the placeholder localhost:3000 server
-      const placeholderKey = ServerConnection.Key.make("http://localhost:3000")
-      props.server.remove(placeholderKey)
+      // Remove all stale servers (localhost:3000 placeholder, webcontainer.local
+      // from old deploys, and any other non-matching entries)
+      const staleKeys = props.server.list
+        .map((s) => ServerConnection.key(s))
+        .filter((key) => key !== url)
+      for (const key of staleKeys) {
+        props.server.remove(key)
+      }
 
       const conn = props.server.add({
         type: "http",
