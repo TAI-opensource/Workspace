@@ -33,7 +33,11 @@ export const { use: useWebContainer, provider: WebContainerProvider } = createSi
 
       try {
         setState("booting")
-        const { WebContainer } = await import("@webcontainer/api")
+        const { WebContainer, auth } = await import("@webcontainer/api")
+        auth.init({
+          clientId: "wc_api_mmdj04_967ba18d412fdf65314a33bcda734613",
+          scope: "",
+        })
         const instance = await WebContainer.boot({ coep: "credentialless" })
         setContainer(instance)
         setState("ready")
