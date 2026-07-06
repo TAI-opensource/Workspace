@@ -62,7 +62,7 @@ export const GitHubSyncApi = HttpApi.make("github-sync")
             description: "Trigger an immediate sync to GitHub.",
           }),
         ),
-        HttpApiEndpoint.del("disconnect", GitHubSyncPaths.disconnect, {
+        HttpApiEndpoint.delete("disconnect", GitHubSyncPaths.disconnect, {
           success: described(Schema.Void, "GitHub disconnected"),
         }).annotateMerge(
           OpenApi.annotations({
