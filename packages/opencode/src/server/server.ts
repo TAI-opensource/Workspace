@@ -104,7 +104,7 @@ function listenerLayer(opts: ListenOptions, port: number) {
     disableListenLog: true,
   }).pipe(
     Layer.provideMerge(AppNodeBuilder.build(WebSocketTracker.node)),
-    Layer.provideMerge(serverLayer({ port, hostname: opts.hostname })),
+    Layer.provideMerge(serverLayer({ port, hostname: opts.hostname, cors: opts.cors })),
     // Install a fresh `ConfigProvider` per listener so `Config.string(...)`
     // reads reflect the current `process.env`. Effect's default
     // `ConfigProvider` snapshots `process.env` on first read and caches the
@@ -196,8 +196,20 @@ function forceClose(state: ListenerState) {
   return Effect.all([state.http.closeAll, state.websockets.closeAll], { concurrency: "unbounded", discard: true })
 }
 
-function serverLayer(opts: { port: number; hostname: string }) {
-  const server = createServer()
+function serverLayer(opts: { port: number; hostname: string; cors?: ReadonlyArray<string> }) {
+  const server = createServer((req, res) => {
+    if (opts.cors?.includes("*")) {
+      res.setHeader("Access-Control-Allow-Origin", "*")
+      res.setHeader("Access-Control-Allow-Methods", "*")
+      res.setHeader("Access-Control-Allow-Headers", "*")
+      res.setHeader("Access-Control-Max-Age", "86400")
+    }
+    if (req.method === "OPTIONS") {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+  })
   const serverRef = { closeStarted: false, forceStop: false }
   const close = server.close.bind(server)
   // Keep shutdown owned by NodeHttpServer, but honor listener.stop(true) by
