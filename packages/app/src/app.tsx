@@ -453,7 +453,8 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
     }
   })
 
-  createEffect(() => {
+  // Use createRenderEffect to ensure server.add() runs BEFORE children render
+  createRenderEffect(() => {
     if (runner.runnerState() === "ready" && runner.serverUrl()) {
       const url = runner.serverUrl()!
       props.server.add({
@@ -503,13 +504,15 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
             </div>
           </Show>
 
-          <button
-            type="button"
-            class="px-6 py-2 rounded-lg bg-info-base text-text-inverted text-14-medium hover:opacity-90 transition-opacity"
-            onClick={handleRetry}
-          >
-            Try again
-          </button>
+          <Show when={runner.runnerState() === "error"}>
+            <button
+              type="button"
+              class="px-6 py-2 rounded-lg bg-info-base text-text-inverted text-14-medium hover:opacity-90 transition-opacity"
+              onClick={handleRetry}
+            >
+              Try again
+            </button>
+          </Show>
         </div>
       }
     >

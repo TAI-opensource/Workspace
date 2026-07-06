@@ -1,6 +1,6 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { createEffect, createSignal, onCleanup, onMount, type ParentProps, Show } from "solid-js"
-import { useWebContainer, type WebContainerState } from "@/context/webcontainer"
+import { createSignal, onCleanup, type ParentProps, Show } from "solid-js"
+import { useWebContainer } from "@/context/webcontainer"
 import { bootOpenCode } from "@/utils/webcontainer-entry"
 
 type RunnerState = "idle" | "booting" | "ready" | "error"
@@ -65,14 +65,13 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
 
         stopFn = result.stop
 
-        // If server-ready wasn't fired yet, set a timeout
+        // If server-ready wasn't fired yet, show error
         setTimeout(() => {
           if (runnerState() === "booting") {
-            // Fallback: assume server is ready
-            setServerUrl("http://localhost:3000")
-            setRunnerState("ready")
+            setError("Server did not start within 60 seconds. Check the logs below.")
+            setRunnerState("error")
           }
-        }, 30000) // 30 second timeout
+        }, 60000)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setRunnerState("error")
@@ -109,13 +108,6 @@ export const { use: useWebContainerRunner, provider: WebContainerRunnerProvider 
 
 export function WebContainerRunnerShell(props: ParentProps) {
   const runner = useWebContainerRunner()
-  const wc = useWebContainer()
-
-  createEffect(() => {
-    if (wc.state() === "ready" && runner.runnerState() === "idle") {
-      runner.start()
-    }
-  })
 
   return (
     <Show
@@ -124,21 +116,23 @@ export function WebContainerRunnerShell(props: ParentProps) {
         <div class="flex flex-col items-center justify-center h-full gap-4">
           <div class="flex flex-col items-center gap-3">
             <Show
-              when={wc.state() === "ready"}
+              when={runner.runnerState() === "error"}
               fallback={
-                <div class="w-8 h-8 border-2 border-text-weak border-t-transparent rounded-full animate-spin" />
+                <div class="w-8 h-8 border-2 border-info-base border-t-transparent rounded-full animate-spin" />
               }
             >
-              <div class="w-8 h-8 border-2 border-info-base border-t-transparent rounded-full animate-spin" />
+              <div class="w-8 h-8 text-error-base text-2xl">!</div>
             </Show>
             <span class="text-14-medium text-text-base">
-              {wc.state() === "ready" ? "Starting OpenCode server..." : "Initializing WebContainer..."}
+              {runner.runnerState() === "error"
+                ? "Server failed to start"
+                : "Starting OpenCode server..."}
             </span>
           </div>
 
           <Show when={runner.logs().length > 0}>
             <div class="w-full max-w-md h-32 overflow-auto bg-background-base rounded-lg border border-border-base p-2 font-mono text-11-regular text-text-weak">
-              {runner.logs().slice(-10).map((line) => (
+              {runner.logs().slice(-15).map((line) => (
                 <div>{line}</div>
               ))}
             </div>
@@ -146,6 +140,15 @@ export function WebContainerRunnerShell(props: ParentProps) {
 
           <Show when={runner.error()}>
             <div class="text-12-regular text-error-base">{runner.error()}</div>
+          </Show>
+
+          <Show when={runner.runnerState() === "error"}>
+            <button
+              class="px-4 py-2 bg-info-base text-background-base rounded-lg text-14-medium hover:opacity-90"
+              onClick={() => runner.stop().then(() => runner.start())}
+            >
+              Try Again
+            </button>
           </Show>
         </div>
       }

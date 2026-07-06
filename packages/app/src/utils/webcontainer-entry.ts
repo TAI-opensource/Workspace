@@ -20,7 +20,7 @@ echo "Starting OpenCode server on port 3000..."
 exec node server.js serve --port 3000 --hostname 0.0.0.0
 `
 
-async function fetchFile(url: string, log: (line: string) => void): Promise<Uint8Array | null> {
+async function fetchFile(url: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) return null
@@ -30,72 +30,89 @@ async function fetchFile(url: string, log: (line: string) => void): Promise<Uint
   }
 }
 
-async function discoverServerFiles(baseUrl: string, log: (line: string) => void): Promise<string[]> {
-  const files: string[] = []
+async function discoverFiles(
+  baseUrl: string,
+  filename: string,
+  text: string,
+  discovered: Map<string, string>,
+  log: (line: string) => void,
+): Promise<void> {
+  if (discovered.has(filename)) return
 
-  const indexJs = await fetchFile(`${baseUrl}/server/server.js`, log)
-  if (!indexJs) throw new Error("server/server.js not found - build may not have completed")
-  files.push("server/server.js")
+  discovered.set(filename, text)
 
-  // Discover chunk files by trying common patterns
-  // The bundler creates chunk-*.js files that are imported by server.js
-  log("Discovering server chunks...")
-
-  // Try to fetch manifest/listing
-  const manifest = await fetchFile(`${baseUrl}/server/manifest.json`, log)
-  if (manifest) {
-    try {
-      const text = new TextDecoder().decode(manifest)
-      const data = JSON.parse(text)
-      if (data.chunks) {
-        for (const chunk of data.chunks) {
-          files.push(`server/${chunk}`)
-        }
+  // Discover .wasm imports
+  const wasmRefs = [...text.matchAll(/["']\.\/([^"']+\.wasm)["']/g)]
+  for (const match of wasmRefs) {
+    const wasmName = match[1]
+    if (!discovered.has(wasmName)) {
+      const data = await fetchFile(`${baseUrl}/server/${wasmName}`)
+      if (data) {
+        const wasmText = new TextDecoder().decode(data)
+        discovered.set(wasmName, wasmText) // store as Uint8Array for binary
+        log(`Discovered WASM: ${wasmName}`)
       }
-    } catch {
-      // ignore
     }
   }
 
-  return files
+  // Discover chunk imports
+  const chunkRefs = [...text.matchAll(/["']\.\/(chunk-[^"']+)["']/g)]
+  for (const match of chunkRefs) {
+    const chunkName = match[1]
+    if (!discovered.has(chunkName)) {
+      const data = await fetchFile(`${baseUrl}/server/${chunkName}`)
+      if (data) {
+        log(`Discovered chunk: ${chunkName}`)
+        await discoverFiles(baseUrl, chunkName, new TextDecoder().decode(data), discovered, log)
+      }
+    }
+  }
 }
 
-async function mountServer(container: WebContainer, baseUrl: string, log: (line: string) => void) {
+async function mountServer(
+  container: WebContainer,
+  baseUrl: string,
+  log: (line: string) => void,
+) {
   const fileTree: Record<string, { file: { contents: Uint8Array } }> = {}
 
-  fileTree["start.sh"] = { file: { contents: new TextEncoder().encode(STARTUP_SCRIPT) } }
+  fileTree["start.sh"] = {
+    file: { contents: new TextEncoder().encode(STARTUP_SCRIPT) },
+  }
 
-  // Fetch main entry
-  const indexJs = await fetchFile(`${baseUrl}/server/server.js`, log)
-  if (!indexJs) throw new Error("server/server.js not found")
-  fileTree["server.js"] = { file: { contents: indexJs } }
-  log("Fetched server.js")
+  // Fetch and parse server.js
+  const serverJs = await fetchFile(`${baseUrl}/server/server.js`)
+  if (!serverJs) throw new Error("server/server.js not found")
 
-  // Fetch WASM files needed by the server
-  const wasmFiles = [
-    "photon_rs_bg-wasm_fingerprint.wasm",
-    "tree-sitter.wasm",
-    "tree-sitter-bash.wasm",
-    "tree-sitter-powershell.wasm",
-  ]
-  for (const wasm of wasmFiles) {
-    const data = await fetchFile(`${baseUrl}/server/${wasm}`, log)
-    if (data) {
-      fileTree[wasm] = { file: { contents: data } }
-      log(`Fetched ${wasm}`)
+  log("Discovered server.js")
+
+  // Discover all files recursively from server.js
+  const discovered = new Map<string, string>()
+  await discoverFiles(
+    baseUrl,
+    "server.js",
+    new TextDecoder().decode(serverJs),
+    discovered,
+    log,
+  )
+
+  // Fetch WASM files separately (they're binary, not text)
+  for (const [filename] of discovered) {
+    if (filename.endsWith(".wasm")) {
+      const data = await fetchFile(`${baseUrl}/server/${filename}`)
+      if (data) {
+        fileTree[filename] = { file: { contents: data } }
+        log(`Fetched ${filename}`)
+      }
     }
   }
 
-  // Discover chunk files from the server.js imports
-  const serverText = new TextDecoder().decode(indexJs)
-  const chunkImports = [...serverText.matchAll(/from\s*["']\.\/(chunk-[^"']+)["']/g)]
-  log(`Found ${chunkImports.length} chunk imports`)
-
-  for (const match of chunkImports) {
-    const chunkName = match[1]
-    const data = await fetchFile(`${baseUrl}/server/${chunkName}`, log)
-    if (data) {
-      fileTree[chunkName] = { file: { contents: data } }
+  // Mount text files (JS chunks)
+  for (const [filename, text] of discovered) {
+    if (!filename.endsWith(".wasm")) {
+      fileTree[filename] = {
+        file: { contents: new TextEncoder().encode(text) },
+      }
     }
   }
 
