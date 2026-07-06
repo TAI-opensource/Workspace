@@ -7,6 +7,7 @@ on:
 
 jobs:
   generate:
+    if: false # Requires OPENCODE_APP_ID secret
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   build:
+    if: false # GHCR requires lowercase repository names
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io/${{ github.repository_owner }}
