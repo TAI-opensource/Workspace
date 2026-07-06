@@ -83,6 +83,10 @@ async function mountServer(
   log(`Mounting ${fileCount} files...`)
   await container.mount(fileTree, { mode: "keep" })
   log(`Mounted ${fileCount} files successfully`)
+
+  // Create workspace directory for projects
+  await container.fs.mkdir("/workspace", { recursive: true })
+  log("Created /workspace directory")
 }
 
 export async function bootOpenCode(container: WebContainer, callbacks?: BootCallbacks) {

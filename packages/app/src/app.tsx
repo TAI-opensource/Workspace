@@ -445,7 +445,9 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
 function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServer> }>) {
   const wc = useWebContainer()
   const runner = useWebContainerRunner()
+  const global = useGlobal()
   const [bootAttempt, setBootAttempt] = createSignal(0)
+  let workspaceOpened = false
 
   createEffect(() => {
     if (wc.state() === "ready" && runner.runnerState() === "idle") {
@@ -457,10 +459,16 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
   createRenderEffect(() => {
     if (runner.runnerState() === "ready" && runner.serverUrl()) {
       const url = runner.serverUrl()!
-      props.server.add({
+      const conn = props.server.add({
         type: "http",
         http: { url },
       })
+      // Auto-open /workspace as the default project
+      if (conn && !workspaceOpened) {
+        workspaceOpened = true
+        const ctx = global.ensureServerCtx(conn)
+        ctx.projects.open("/workspace")
+      }
     }
   })
 
