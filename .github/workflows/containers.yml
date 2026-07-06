@@ -3,7 +3,7 @@ name: containers
 on:
   push:
     branches:
-      - dev
+      - main
     paths:
       - packages/containers/**
       - .github/workflows/containers.yml
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io/${{ github.repository_owner }}
       TAG: "24.04"

@@ -3,7 +3,7 @@ name: docs-locale-sync
 on:
   push:
     branches:
-      - dev
+      - main
     paths:
       - packages/web/src/content/docs/*.mdx
 
@@ -11,7 +11,7 @@ jobs:
   sync-locales:
     if: false
     #if: github.actor != 'opencode-agent[bot]'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
