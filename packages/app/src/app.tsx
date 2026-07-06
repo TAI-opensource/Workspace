@@ -459,6 +459,11 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
   createRenderEffect(() => {
     if (runner.runnerState() === "ready" && runner.serverUrl()) {
       const url = runner.serverUrl()!
+
+      // Remove the placeholder localhost:3000 server
+      const placeholderKey = ServerConnection.Key.make("http://localhost:3000")
+      props.server.remove(placeholderKey)
+
       const conn = props.server.add({
         type: "http",
         http: { url },

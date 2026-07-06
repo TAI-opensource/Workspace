@@ -180,9 +180,6 @@ if (root instanceof HTMLElement) {
       ...auth,
     },
   }
-  // In WebContainer mode, don't pass the placeholder server —
-  // WebContainerGate will register the real URL via server.add()
-  const servers = isWebContainer() ? [] : [server]
   render(
     () => (
       <PlatformProvider value={platform}>
@@ -190,7 +187,7 @@ if (root instanceof HTMLElement) {
           <AppInterface
             defaultServer={ServerConnection.Key.make(getDefaultUrl())}
             canonicalLocalServer={ServerConnection.key(server)}
-            servers={servers}
+            servers={[server]}
             disableHealthCheck
           />
         </AppBaseProviders>
