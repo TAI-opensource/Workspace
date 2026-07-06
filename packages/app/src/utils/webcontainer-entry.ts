@@ -48,6 +48,25 @@ async function mountServer(
     },
   }
 
+  fileTree["package-lock.json"] = {
+    file: {
+      contents: new TextEncoder().encode(
+        JSON.stringify({
+          name: "opencode-server",
+          version: "0.0.0",
+          lockfileVersion: 3,
+          requires: true,
+          packages: {
+            "": { name: "opencode-server", version: "0.0.0", private: true, type: "module", dependencies: { "wa-sqlite": "*", "drizzle-orm": "*", "jsonc-parser": "*" } },
+            "node_modules/drizzle-orm": { version: "0.38.3", resolved: "https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.38.3.tgz" },
+            "node_modules/jsonc-parser": { version: "3.3.1", resolved: "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.3.1.tgz" },
+            "node_modules/wa-sqlite": { version: "0.9.7", resolved: "https://registry.npmjs.org/wa-sqlite/-/wa-sqlite-0.9.7.tgz" },
+          },
+        }),
+      ),
+    },
+  }
+
   const manifestData = await fetchFile(`${baseUrl}/server/manifest.json`)
   if (!manifestData) throw new Error("server/manifest.json not found")
 

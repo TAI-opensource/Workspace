@@ -13,7 +13,8 @@ import { Location } from "../location"
 import { lazy } from "../util/lazy"
 import { Ignore } from "./ignore"
 import { Protected } from "./protected"
-import { readdir, stat } from "node:fs/promises"
+import { readdir, stat, watch as fsWatch } from "node:fs/promises"
+import type { FSWatcher } from "node:fs"
 
 export const Event = FileSystemWatcher.Event
 
@@ -29,8 +30,6 @@ interface FileState {
   isDirectory: boolean
 }
 
-const POLL_INTERVAL_MS = 1000
-
 async function scanDirectory(dir: string, ignorePatterns: string[]): Promise<Map<string, FileState>> {
   const files = new Map<string, FileState>()
 
@@ -41,7 +40,6 @@ async function scanDirectory(dir: string, ignorePatterns: string[]): Promise<Map
         const fullPath = path.join(currentDir, entry.name)
         const relativePath = path.relative(dir, fullPath)
 
-        // Check ignore patterns
         if (ignorePatterns.some((pattern) => relativePath.includes(pattern))) {
           continue
         }
@@ -70,6 +68,10 @@ async function scanDirectory(dir: string, ignorePatterns: string[]): Promise<Map
   return files
 }
 
+function isIgnored(filePath: string, ignorePatterns: string[]): boolean {
+  return ignorePatterns.some((pattern) => filePath.includes(pattern))
+}
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -84,65 +86,76 @@ const layer = Layer.effect(
       .flatMap((item) => item.info.watcher?.ignore ?? [])
 
     const ignorePatterns = [...Ignore.PATTERNS, ...config]
-    let previousFiles = new Map<string, FileState>()
-    let polling = true
 
-    // Initial scan
     const initialFiles = yield* Effect.promise(() => scanDirectory(location.directory, ignorePatterns))
-    previousFiles = initialFiles
+    let fileStates = initialFiles
 
-    // Start polling
-    const poll = async () => {
-      while (polling) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    let watcher: FSWatcher | null = null
 
-        try {
-          const currentFiles = await scanDirectory(location.directory, ignorePatterns)
+    try {
+      watcher = fsWatch(location.directory, { recursive: true })
 
-          // Check for new or modified files
-          for (const [path, state] of currentFiles) {
-            const prev = previousFiles.get(path)
-            if (!prev) {
-              // New file
-              Effect.runFork(events.publish(Event.Updated, { file: path, event: "add" }))
-            } else if (prev.mtime !== state.mtime) {
-              // Modified file
-              Effect.runFork(events.publish(Event.Updated, { file: path, event: "change" }))
+      Effect.runFork(
+        Effect.fn("watcher.processEvents")(function* () {
+          const asyncIter = watcher![Symbol.asyncIterator]()
+
+          while (true) {
+            const next = yield* Effect.promise(() => asyncIter.next())
+            if (next.done) break
+
+            const event = next.value
+            if (!event.filename) continue
+
+            const fullPath = path.join(location.directory, event.filename)
+
+            if (isIgnored(fullPath, ignorePatterns)) continue
+
+            if (event.eventType === "rename") {
+              try {
+                await stat(fullPath)
+                const stats = await stat(fullPath)
+                const isDir = stats.isDirectory()
+                fileStates.set(fullPath, { path: fullPath, mtime: stats.mtimeMs, isDirectory: isDir })
+                Effect.runFork(events.publish(Event.Updated, { file: fullPath, event: "add" }))
+              } catch {
+                const prev = fileStates.get(fullPath)
+                if (prev) {
+                  fileStates.delete(fullPath)
+                  Effect.runFork(events.publish(Event.Updated, { file: fullPath, event: "unlink" }))
+                }
+              }
+            } else if (event.eventType === "change") {
+              try {
+                const stats = await stat(fullPath)
+                const prev = fileStates.get(fullPath)
+                if (prev && prev.mtime !== stats.mtimeMs) {
+                  prev.mtime = stats.mtimeMs
+                  Effect.runFork(events.publish(Event.Updated, { file: fullPath, event: "change" }))
+                } else if (!prev) {
+                  fileStates.set(fullPath, { path: fullPath, mtime: stats.mtimeMs, isDirectory: stats.isDirectory() })
+                  Effect.runFork(events.publish(Event.Updated, { file: fullPath, event: "add" }))
+                }
+              } catch {
+                // File may have been deleted between rename and change events
+              }
             }
           }
-
-          // Check for deleted files
-          for (const [path] of previousFiles) {
-            if (!currentFiles.has(path)) {
-              Effect.runFork(events.publish(Event.Updated, { file: path, event: "unlink" }))
-            }
-          }
-
-          previousFiles = currentFiles
-        } catch (e) {
-          // Log error but continue polling
-          console.error("File watcher poll error:", e)
-        }
-      }
+        }),
+      )
+    } catch {
+      // fs.watch with recursive may not be supported, fall back to no-op
     }
-
-    // Start polling in background
-    Effect.runFork(
-      Effect.sync(() => {
-        poll().catch(() => {})
-      }),
-    )
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        polling = false
+        watcher?.close()
       }),
     )
 
     yield* Effect.logInfo("watcher backend", {
       directory: location.directory,
       platform: "webcontainer",
-      backend: "polling",
+      backend: "native-fs.watch",
     })
 
     return Service.of({})

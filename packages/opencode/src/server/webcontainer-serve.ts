@@ -10,5 +10,5 @@ const hostname = process.env.OPENCODE_HOSTNAME || "0.0.0.0"
 
 console.log(`Starting OpenCode server on port ${port}...`)
 
-const server = await listen({ port, hostname })
+const server = await listen({ port, hostname, cors: ["*"] })
 console.log(`opencode server listening on http://${server.hostname}:${server.port}`)

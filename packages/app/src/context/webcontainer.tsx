@@ -34,7 +34,7 @@ export const { use: useWebContainer, provider: WebContainerProvider } = createSi
       try {
         setState("booting")
         const { WebContainer } = await import("@webcontainer/api")
-        const instance = await WebContainer.boot()
+        const instance = await WebContainer.boot({ coep: "credentialless" })
         setContainer(instance)
         setState("ready")
       } catch (e) {
