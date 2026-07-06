@@ -1,5 +1,5 @@
 {
-  "buildCommand": "bun install && bun run --cwd packages/app build",
+  "buildCommand": "bun install && bun run --cwd packages/opencode build:webcontainer && mkdir -p packages/app/dist/server && cp -r packages/opencode/dist/webcontainer/* packages/app/dist/server/ && bun run --cwd packages/app build",
   "outputDirectory": "packages/app/dist",
   "framework": null,
   "installCommand": "bun install",
