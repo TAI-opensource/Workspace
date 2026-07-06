@@ -8,6 +8,8 @@ type BootCallbacks = {
   onError?: (error: string) => void
 }
 
+type Manifest = Record<string, "js" | "wasm">
+
 async function fetchFile(url: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(url)
@@ -15,48 +17,6 @@ async function fetchFile(url: string): Promise<Uint8Array | null> {
     return new Uint8Array(await res.arrayBuffer())
   } catch {
     return null
-  }
-}
-
-const MAX_DISCOVERY_DEPTH = 3
-
-async function discoverFiles(
-  baseUrl: string,
-  filename: string,
-  text: string,
-  discovered: Map<string, string>,
-  log: (line: string) => void,
-  depth: number = 0,
-): Promise<void> {
-  if (discovered.has(filename)) return
-  if (depth > MAX_DISCOVERY_DEPTH) return
-
-  discovered.set(filename, text)
-
-  const wasmRefs = [...text.matchAll(/["']\.\/([^"']+\.wasm)["']/g)]
-  for (const match of wasmRefs) {
-    const wasmName = match[1]
-    if (!discovered.has(wasmName)) {
-      const data = await fetchFile(`${baseUrl}/server/${wasmName}`)
-      if (data) {
-        discovered.set(wasmName, "")
-        log(`Discovered WASM: ${wasmName}`)
-      }
-    }
-  }
-
-  if (depth < MAX_DISCOVERY_DEPTH) {
-    const chunkRefs = [...text.matchAll(/["']\.\/(chunk-[^"']+)["']/g)]
-    for (const match of chunkRefs) {
-      const chunkName = match[1]
-      if (!discovered.has(chunkName)) {
-        const data = await fetchFile(`${baseUrl}/server/${chunkName}`)
-        if (data) {
-          log(`Discovered chunk: ${chunkName}`)
-          await discoverFiles(baseUrl, chunkName, new TextDecoder().decode(data), discovered, log, depth + 1)
-        }
-      }
-    }
   }
 }
 
@@ -82,37 +42,34 @@ async function mountServer(
     },
   }
 
-  const serverJs = await fetchFile(`${baseUrl}/server/server.js`)
-  if (!serverJs) throw new Error("server/server.js not found")
+  const manifestData = await fetchFile(`${baseUrl}/server/manifest.json`)
+  if (!manifestData) throw new Error("server/manifest.json not found")
 
-  log("Discovered server.js")
+  const manifest: Manifest = JSON.parse(new TextDecoder().decode(manifestData))
+  const filenames = Object.keys(manifest)
+  log(`Manifest: ${filenames.length} files to fetch`)
 
-  const discovered = new Map<string, string>()
-  await discoverFiles(
-    baseUrl,
-    "server.js",
-    new TextDecoder().decode(serverJs),
-    discovered,
-    log,
+  let fetched = 0
+  const total = filenames.length
+
+  const results = await Promise.all(
+    filenames.map(async (filename) => {
+      const data = await fetchFile(`${baseUrl}/server/${filename}`)
+      if (!data) {
+        log(`Failed to fetch: ${filename}`)
+        return null
+      }
+      fetched++
+      if (fetched % 20 === 0 || fetched === total) {
+        log(`Fetched ${fetched}/${total} files...`)
+      }
+      return { filename, data, type: manifest[filename] }
+    }),
   )
 
-  log(`Discovered ${discovered.size} files`)
-
-  for (const [filename] of discovered) {
-    if (filename.endsWith(".wasm")) {
-      const data = await fetchFile(`${baseUrl}/server/${filename}`)
-      if (data) {
-        fileTree[filename] = { file: { contents: data } }
-        log(`Fetched ${filename} (${(data.byteLength / 1024).toFixed(0)} KB)`)
-      }
-    }
-  }
-
-  for (const [filename, text] of discovered) {
-    if (!filename.endsWith(".wasm") && text) {
-      fileTree[filename] = {
-        file: { contents: new TextEncoder().encode(text) },
-      }
+  for (const result of results) {
+    if (result) {
+      fileTree[result.filename] = { file: { contents: result.data } }
     }
   }
 

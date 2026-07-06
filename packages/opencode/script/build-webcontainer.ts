@@ -56,6 +56,18 @@ if (!result.success) {
 }
 
 console.log(`Build successful! ${result.outputs.length} output files:`)
+
+const manifest: Record<string, "js" | "wasm"> = {}
 for (const output of result.outputs) {
+  const name = output.path.split("/").pop()!
   console.log(`  ${output.path.replace(dir + "/", "")} (${(output.size / 1024).toFixed(1)} KB)`)
+  if (name.endsWith(".wasm")) {
+    manifest[name] = "wasm"
+  } else if (name.endsWith(".js")) {
+    manifest[name] = "js"
+  }
 }
+
+const manifestPath = path.join(dir, "dist/webcontainer/manifest.json")
+fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+console.log(`Manifest written: ${Object.keys(manifest).length} files`)

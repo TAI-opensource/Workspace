@@ -20,6 +20,7 @@ done
 for f in packages/opencode/dist/webcontainer/*.wasm; do
   cp "$f" packages/app/dist/server/ 2>/dev/null || true
 done
+cp packages/opencode/dist/webcontainer/manifest.json packages/app/dist/server/
 
 echo "=== Build complete ==="
 du -sh packages/app/dist/
