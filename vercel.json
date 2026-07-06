@@ -2,7 +2,7 @@
   "buildCommand": "bash build.sh",
   "outputDirectory": "dist",
   "framework": null,
-  "installCommand": "bun install --ignore-scripts",
+  "installCommand": "rm -f tsconfig.json && bun install --ignore-scripts",
   "headers": [
     {
       "source": "/(.*)",

@@ -3,6 +3,9 @@ set -e
 
 echo "=== Building OpenCode for WebContainer ==="
 
+# Disable TypeScript typecheck to prevent OOM on Vercel free tier
+echo '{"compilerOptions":{"noEmit":true,"skipLibCheck":true,"strict":false},"include":[]}' > tsconfig.json
+
 echo "1. Building server for WebContainer..."
 bun run --cwd packages/opencode build:webcontainer
 
@@ -22,9 +25,6 @@ cp packages/opencode/dist/webcontainer/manifest.json packages/app/dist/server/
 echo "4. Copying to dist/ for Vercel..."
 rm -rf dist
 cp -r packages/app/dist dist
-
-# Skip Vercel's TypeScript typecheck to avoid OOM on free tier
-echo '{"compilerOptions":{"noEmit":true,"skipLibCheck":true}}' > tsconfig.json
 
 echo "=== Build complete ==="
 du -sh dist/
