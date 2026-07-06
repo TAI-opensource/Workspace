@@ -20,6 +20,14 @@ export const SettingsGitHubSyncV2: Component = () => {
   const [branch, setBranch] = createSignal("main")
   const [interval, setInterval] = createSignal("300")
   const [status, setStatus] = createSignal("disconnected")
+
+  const intervalOptions = [
+    { value: "60", label: "Every minute" },
+    { value: "300", label: "Every 5 minutes" },
+    { value: "900", label: "Every 15 minutes" },
+    { value: "1800", label: "Every 30 minutes" },
+    { value: "3600", label: "Every hour" },
+  ]
   const [lastSync, setLastSync] = createSignal<string | null>(null)
   const [loading, setLoading] = createSignal(false)
 
@@ -194,15 +202,11 @@ export const SettingsGitHubSyncV2: Component = () => {
                   appearance="inline"
                   placement="bottom-end"
                   gutter={6}
-                  value={interval()}
-                  onChange={(e) => setInterval(e.target.value)}
-                  options={[
-                    { value: "60", label: "Every minute" },
-                    { value: "300", label: "Every 5 minutes" },
-                    { value: "900", label: "Every 15 minutes" },
-                    { value: "1800", label: "Every 30 minutes" },
-                    { value: "3600", label: "Every hour" },
-                  ]}
+                  options={intervalOptions}
+                  current={intervalOptions.find((o) => o.value === interval())}
+                  value={(o) => o.value}
+                  label={(o) => o.label}
+                  onSelect={(option) => option && setInterval(option.value)}
                 />
               </SettingsRowV2>
 
