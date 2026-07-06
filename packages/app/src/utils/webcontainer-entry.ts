@@ -37,6 +37,7 @@ async function mountServer(
         JSON.stringify({
           name: "opencode-server",
           private: true,
+          type: "module",
           dependencies: {
             "wa-sqlite": "*",
             "drizzle-orm": "*",

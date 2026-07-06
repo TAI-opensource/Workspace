@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
@@ -9,9 +9,9 @@ const root = "/github-sync"
 const GitHubSyncConfigSchema = Schema.Struct({
   token: Schema.String,
   repository: Schema.String,
-  branch: Schema.String.pipe(Schema.withDefaults({ constructor: () => "main" })),
-  syncInterval: Schema.Number.pipe(Schema.withDefaults({ constructor: () => 300 })),
-  autoSync: Schema.Boolean.pipe(Schema.withDefaults({ constructor: () => true })),
+  branch: Schema.String.pipe(Schema.withConstructorDefault(Effect.succeed("main"))),
+  syncInterval: Schema.Number.pipe(Schema.withConstructorDefault(Effect.succeed(300))),
+  autoSync: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true))),
 })
 
 const GitHubSyncStatusSchema = Schema.Struct({
