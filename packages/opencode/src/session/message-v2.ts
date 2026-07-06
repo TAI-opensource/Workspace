@@ -32,7 +32,10 @@ import { ProviderError } from "@/provider/error"
 import { iife } from "@/util/iife"
 import { errorMessage } from "@/util/error"
 import { isMedia } from "@/util/media"
-import type { SystemError } from "bun"
+interface SystemError extends Error {
+  code?: string
+  syscall?: string
+}
 import type { Provider } from "@/provider/provider"
 import { Effect, Schema } from "effect"
 

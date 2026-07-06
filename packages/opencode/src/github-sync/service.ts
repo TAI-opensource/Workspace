@@ -21,6 +21,7 @@ interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/GitHubSync") {}
+export { Service as GitHubSyncService }
 
 type State = {
   config: GitHubSyncConfig | null

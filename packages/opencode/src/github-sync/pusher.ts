@@ -7,6 +7,7 @@ interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/GitHubSyncPusher") {}
+export { Service as GitHubSyncPusher }
 
 export const layer = Layer.effect(
   Service,

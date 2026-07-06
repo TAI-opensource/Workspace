@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import { $ } from "bun"
 import path from "path"
 import { fileURLToPath } from "url"
 
@@ -13,20 +12,34 @@ process.chdir(dir)
 const generated = await import("./generate.ts")
 import pkg from "../package.json"
 
-console.log("Building OpenCode server for WebContainer (Node.js compatible)...")
+console.log("Building OpenCode HTTP server for WebContainer...")
 
-await $`rm -rf dist/webcontainer`
-await $`mkdir -p dist/webcontainer`
+const fs = await import("fs")
+fs.rmSync("dist/webcontainer", { recursive: true, force: true })
+fs.mkdirSync("dist/webcontainer", { recursive: true })
 
 const result = await Bun.build({
+  target: "node",
   conditions: ["webcontainer", "node"],
   tsconfig: "./tsconfig.json",
-  external: ["node-gyp"],
+  external: [
+    "node-gyp",
+    "wa-sqlite",
+    "better-sqlite3",
+    "drizzle-orm/better-sqlite3",
+    "@opentui/core",
+    "@opentui/core-linux-x64",
+    "@opentui/core-linux-arm64",
+    "@opentui/core-darwin-arm64",
+    "@opentui/core-darwin-x64",
+    "@opentui/core-win32-x64",
+    "@opentui/core-win32-arm64",
+  ],
   format: "esm",
   minify: false,
   sourcemap: "linked",
   splitting: true,
-  entrypoints: ["./src/index.ts"],
+  entrypoints: ["./src/server/server.ts"],
   define: {
     OPENCODE_VERSION: `'${pkg.version}'`,
     OPENCODE_MODELS_DEV: generated.modelsData,
@@ -39,14 +52,12 @@ const result = await Bun.build({
 if (!result.success) {
   console.error("Build failed:")
   for (const msg of result.logs) {
-    console.error(msg)
+    console.error(String(msg))
   }
   process.exit(1)
 }
 
-console.log(`Build successful! Output files:`)
+console.log(`Build successful! ${result.outputs.length} output files:`)
 for (const output of result.outputs) {
-  console.log(`  ${output.path} (${(output.size / 1024).toFixed(1)} KB)`)
+  console.log(`  ${output.path.replace(dir + "/", "")} (${(output.size / 1024).toFixed(1)} KB)`)
 }
-
-export { result }
