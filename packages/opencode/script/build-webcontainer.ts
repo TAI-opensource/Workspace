@@ -25,13 +25,6 @@ const result = await Bun.build({
   external: [
     "node-gyp",
     "wa-sqlite",
-    "@opentui/core",
-    "@opentui/core-linux-x64",
-    "@opentui/core-linux-arm64",
-    "@opentui/core-darwin-arm64",
-    "@opentui/core-darwin-x64",
-    "@opentui/core-win32-x64",
-    "@opentui/core-win32-arm64",
   ],
   format: "esm",
   minify: false,

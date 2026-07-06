@@ -470,7 +470,7 @@ function WebContainerGate(props: ParentProps<{ server: ReturnType<typeof useServ
     setBootAttempt((a) => a + 1)
   }
 
-  const lastLogs = createMemo(() => runner.logs().slice(-15))
+  const lastLogs = createMemo(() => runner.logs().slice(-50).map((line) => line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")))
 
   return (
     <Show

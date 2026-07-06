@@ -135,8 +135,8 @@ export function WebContainerRunnerShell(props: ParentProps) {
 
           <Show when={runner.logs().length > 0}>
             <div class="w-full max-w-md h-32 overflow-auto bg-background-base rounded-lg border border-border-base p-2 font-mono text-11-regular text-text-weak">
-              {runner.logs().slice(-15).map((line) => (
-                <div>{line}</div>
+              {runner.logs().slice(-50).map((line) => (
+                <div>{line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")}</div>
               ))}
             </div>
           </Show>

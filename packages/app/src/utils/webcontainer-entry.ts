@@ -10,6 +10,10 @@ type BootCallbacks = {
 
 type Manifest = Record<string, "js" | "wasm">
 
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\].*?\x07/g, "")
+}
+
 async function fetchFile(url: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(url)
@@ -97,7 +101,8 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
     npmInstall.output.pipeTo(
       new WritableStream({
         write(data) {
-          log(`[npm] ${data}`)
+          const clean = stripAnsi(data).trim()
+          if (clean) log(`[npm] ${clean}`)
         },
       }),
     )
@@ -122,7 +127,7 @@ export async function bootOpenCode(container: WebContainer, callbacks?: BootCall
     serverProcess.output.pipeTo(
       new WritableStream({
         write(data) {
-          log(data)
+          log(stripAnsi(data))
         },
       }),
     )
