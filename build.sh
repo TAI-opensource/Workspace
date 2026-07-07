@@ -3,7 +3,8 @@ set -e
 
 echo "=== Building OpenCode for WebContainer ==="
 
-# Disable TypeScript typecheck to prevent OOM on Vercel free tier
+# tsconfig.json is already created by vercel.json installCommand (no-op for typecheck)
+# Re-create here as safety net
 echo '{"compilerOptions":{"noEmit":true,"skipLibCheck":true,"strict":false},"include":[]}' > tsconfig.json
 
 echo "1. Building server for WebContainer..."
