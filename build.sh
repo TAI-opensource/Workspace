@@ -11,11 +11,14 @@ echo "1. Building server for WebContainer..."
 bun run --cwd packages/opencode build:webcontainer
 
 echo "2. Building frontend..."
-# Force clean build - remove all caches
-find packages/app -name ".vite" -type d -exec rm -rf {} + 2>/dev/null || true
-find packages/app -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
-find packages/app -name ".turbo" -type d -exec rm -rf {} + 2>/dev/null || true
-bun run --cwd packages/app build
+# Aggressively clear ALL caches to force fresh build
+rm -rf packages/app/node_modules/.vite 2>/dev/null || true
+rm -rf packages/app/dist 2>/dev/null || true
+rm -rf packages/app/.turbo 2>/dev/null || true
+rm -rf node_modules/.cache 2>/dev/null || true
+rm -rf .turbo 2>/dev/null || true
+# Use --force to bypass any remaining Vite cache
+bun run --cwd packages/app build --force
 
 echo "3. Copying server to frontend assets..."
 mkdir -p packages/app/dist/server
