@@ -10,7 +10,10 @@ echo "1. Building server for WebContainer..."
 bun run --cwd packages/opencode build:webcontainer
 
 echo "2. Building frontend..."
-rm -rf packages/app/node_modules/.vite packages/app/dist
+# Force clean build - remove all caches
+find packages/app -name ".vite" -type d -exec rm -rf {} + 2>/dev/null || true
+find packages/app -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+find packages/app -name ".turbo" -type d -exec rm -rf {} + 2>/dev/null || true
 bun run --cwd packages/app build
 
 echo "3. Copying server to frontend assets..."
