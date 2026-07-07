@@ -10,6 +10,7 @@ echo "1. Building server for WebContainer..."
 bun run --cwd packages/opencode build:webcontainer
 
 echo "2. Building frontend..."
+rm -rf packages/app/node_modules/.vite packages/app/dist
 bun run --cwd packages/app build
 
 echo "3. Copying server to frontend assets..."
